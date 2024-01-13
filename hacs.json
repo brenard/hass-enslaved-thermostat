@@ -1,0 +1,5 @@
+{
+  "name": "Enslaved thermostat",
+  "hacs": "2024.1.0",
+  "homeassistant": "2024.1.1"
+}

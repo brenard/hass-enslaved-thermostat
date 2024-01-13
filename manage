@@ -1,0 +1,102 @@
+#!/bin/bash
+
+SRC_DIR=$( dirname "$(realpath $0)" )
+NAME=$(basename $SRC_DIR)
+TRUNCATE_LOGS_BEFORE_EACH_START=1
+
+ACTION="$1"
+[ "$2" == "-x" ] && set -x
+
+case $ACTION in
+
+  create)
+    CONFIG_DIR="$SRC_DIR/config"
+    [ ! -d $CONFIG_DIR ] && mkdir "$CONFIG_DIR"
+    docker create \
+      --name $NAME \
+      --privileged --restart=unless-stopped \
+      -e TZ=$( cat /etc/timezone ) \
+      -v "$CONFIG_DIR:/config" \
+      -v $SRC_DIR/custom_components:/config/custom_components \
+      -v $SRC_DIR/bin:/root/bin \
+      -v /run/dbus:/run/dbus:ro \
+      --network=host \
+      ghcr.io/home-assistant/home-assistant
+    ;;
+
+  remove)
+    if [ -z "$( docker ps -aq -f name=$NAME 2>/dev/null )" ]
+    then
+        echo "Container $NAME does not exists"
+        exit 0
+    fi
+    echo -n "Are-you sure you want to delete the container $NAME [Y/n]? "
+    read r
+    [ -n "$r" -a "$r" != "y" ] && exit 0
+    if [ -n "$( docker ps -aq -f status=running -f name=$NAME 2>/dev/null )" ]
+    then
+        $0 stop
+    fi
+    docker rm $NAME
+    ;;
+
+  start|stop|restart)
+    if [ "$ACTION" != "stop" ]
+    then
+        if [ -z "$( docker ps -aq -f name=$NAME 2>/dev/null )" ]
+        then
+            $0 create
+        elif [ $TRUNCATE_LOGS_BEFORE_EACH_START -eq 1 ]
+        then
+            $0 truncate-logs
+        fi
+    fi
+
+    docker $ACTION $NAME
+
+    if [ "$ACTION" != "stop" ]
+    then
+        $0 logs
+    fi
+    ;;
+
+  status)
+    if [ -n "$( docker ps -aq -f status=running -f name=$NAME 2>/dev/null )" ]
+    then
+        docker stats $NAME --all --no-trunc
+    elif [ -n "$( docker ps -aq -f status=exited -f name=$NAME 2>/dev/null )" ]
+    then
+        echo "Container $NAME is not running."
+    else
+        echo "Container $NAME does not exists."
+    fi
+    ;;
+
+  recreate)
+    $0 remove
+    $0 create
+    ;;
+
+  logs)
+    docker logs -f $NAME
+    ;;
+
+  truncate-logs)
+    sudo truncate -s 0 $(docker inspect --format='{{.LogPath}}' $NAME)
+    ;;
+
+  *)
+    cat << EOF
+Usage: $0 [command]
+  Available commands:
+    create                     Create docker container
+    remove                     Remove docker container
+    recreate                   Recreate docker container
+    start                      Start docker container
+    status                     Show docker container status
+    stop                       Stop docker container
+    restart                    Restart docker container
+    logs                       Show (and follow) docker container logs
+    truncate-logs              Truncate docker container logs
+EOF
+esac

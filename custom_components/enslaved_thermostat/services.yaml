@@ -1,0 +1,73 @@
+reload:
+
+set_enslaved_mode:
+  target:
+    entity:
+      domain: climate
+  fields:
+    mode:
+      required: true
+      example: "auto"
+      selector:
+        select:
+          translation_key: "enslaved_mode"
+          options:
+            - "off"
+            - "manual"
+            - "auto"
+    temperature:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 250
+          step: 0.1
+          mode: box
+    hvac_mode:
+      required: false
+      example: "heat"
+      selector:
+        select:
+          translation_key: hvac_mode
+          options:
+            - "off"
+            - "auto"
+            - "cool"
+            - "dry"
+            - "fan_only"
+            - "heat_cool"
+            - "heat"
+
+set_enslaved_target_temperature:
+  target:
+    entity:
+      domain: climate
+  fields:
+    temperature:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 250
+          step: 0.1
+          mode: box
+
+set_enslaved_hvac_mode:
+  target:
+    entity:
+      domain: climate
+  fields:
+    mode:
+      required: true
+      example: "heat"
+      selector:
+        select:
+          translation_key: hvac_mode
+          options:
+            - "off"
+            - "auto"
+            - "cool"
+            - "dry"
+            - "fan_only"
+            - "heat_cool"
+            - "heat"
