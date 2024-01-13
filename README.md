@@ -56,6 +56,22 @@ Start by create the container by running the command `./manage create` and start
 [http://localhost:8123](http://localhost:8123) and follow the initialization process of the Home
 Assistant instance.
 
+```
+Usage: ./manage [command]
+  Available commands:
+    create                     Create docker container
+    remove                     Remove docker container
+    recreate                   Recreate docker container
+    start                      Start docker container
+    status                     Show docker container status
+    stop                       Stop docker container
+    restart                    Restart docker container
+    check                      Check code using configured pre-commit hooks
+    logs                       Show (and follow) docker container logs
+    truncate-logs              Truncate docker container logs
+    shell                      Start a shell in docker container context
+```
+
 ## Debugging
 
 To enable debug log, edit the `configuration.yaml` file and locate the `logger` block. If it does not

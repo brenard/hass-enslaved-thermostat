@@ -72,9 +72,24 @@ case $ACTION in
     fi
     ;;
 
+  shell)
+      if [ -n "$( docker ps -aq -f status=exited -f name=$NAME 2>/dev/null )" ]
+      then
+          echo "Container $NAME is not running."
+          exit 1
+      fi
+      docker exec -it $NAME bash
+      exit $?
+      ;;
+
   recreate)
     $0 remove
     $0 create
+    ;;
+
+  check)
+    cd $SRC_DIR
+    pre-commit run --all-files
     ;;
 
   logs)
@@ -96,7 +111,9 @@ Usage: $0 [command]
     status                     Show docker container status
     stop                       Stop docker container
     restart                    Restart docker container
+    check                      Check code using configured pre-commit hooks
     logs                       Show (and follow) docker container logs
     truncate-logs              Truncate docker container logs
+    shell                      Start a shell in docker container context
 EOF
 esac
