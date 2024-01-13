@@ -27,6 +27,11 @@ from homeassistant.components.generic_thermostat.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, CONF_NAME, CONF_UNIQUE_ID
 from homeassistant.core import HomeAssistant
+
+try:
+    from homeassistant.exceptions import ServiceValidationError
+except ImportError:
+    from homeassistant.exceptions import HomeAssistantError as ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback, async_get_current_platform
 from homeassistant.helpers.reload import async_setup_reload_service
 from homeassistant.helpers.restore_state import ExtraStoredData
@@ -60,6 +65,8 @@ DEFAULT_ENSLAVED_MODE = EnslavedMode.MANUAL
 SERVICE_SET_ENSLAVED_MODE = "set_enslaved_mode"
 SERVICE_SET_ENSLAVED_TARGET_TEMP = "set_enslaved_target_temperature"
 SERVICE_SET_ENSLAVED_HVAC_MODE = "set_enslaved_hvac_mode"
+SERVICE_START_SCHEDULER_MODE = "start_scheduler_mode"
+SERVICE_STOP_SCHEDULER_MODE = "stop_scheduler_mode"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -152,6 +159,21 @@ async def async_setup_platform(
         "async_set_enslaved_hvac_mode",
     )
 
+    platform.async_register_entity_service(
+        SERVICE_START_SCHEDULER_MODE,
+        {
+            vol.Required("temperature"): vol.Coerce(float),
+            vol.Optional("hvac_mode"): vol.Coerce(HVACMode),
+        },
+        "async_start_scheduler_mode",
+    )
+
+    platform.async_register_entity_service(
+        SERVICE_STOP_SCHEDULER_MODE,
+        {},
+        "async_stop_scheduler_mode",
+    )
+
 
 @dataclass
 class EnslavedThermostatExtraStoredData(ExtraStoredData):
@@ -160,6 +182,7 @@ class EnslavedThermostatExtraStoredData(ExtraStoredData):
     enslaved_mode: str | None = None
     enslaved_target_temp: float | None = None
     enslaved_hvac_mode: HVACMode | None = None
+    scheduler_previous_state: dict | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Return a dict representation of the text data."""
@@ -171,6 +194,7 @@ class EnslavedThermostat(GenericThermostat):
 
     _enslaved_target_temp = None
     _enslaved_hvac_mode = None
+    _scheduler_previous_state = None
 
     def __init__(
         self,
@@ -223,6 +247,10 @@ class EnslavedThermostat(GenericThermostat):
             initial_enslaved_mode if initial_enslaved_mode else DEFAULT_ENSLAVED_MODE
         )
 
+    #
+    # Implement methods to allow saving and restore custom state attributes
+    #
+
     @property
     def extra_restore_state_data(self) -> ExtraStoredData | None:
         """Return entity extra state data to be restored."""
@@ -230,24 +258,75 @@ class EnslavedThermostat(GenericThermostat):
             enslaved_mode=self.enslaved_mode,
             enslaved_target_temp=self.enslaved_target_temp,
             enslaved_hvac_mode=self.enslaved_hvac_mode,
+            scheduler_previous_state=self._scheduler_previous_state,
         )
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added."""
         # Retrieve and restore enslaved mode info from last known state
+        log.debug("Compute state attributes")
         last_extra_data = await self.async_get_last_extra_data()
         if last_extra_data is not None:
             last_extra_data = last_extra_data.as_dict()
             log.debug("Last extra data: %s", last_extra_data)
-            self._enslaved_mode = last_extra_data["enslaved_mode"]
-            self._enslaved_target_temp = last_extra_data["enslaved_target_temp"]
-            self._enslaved_hvac_mode = last_extra_data["enslaved_hvac_mode"]
+            self._enslaved_mode = last_extra_data.get("enslaved_mode")
+            self._enslaved_target_temp = last_extra_data.get("enslaved_target_temp")
+            self._enslaved_hvac_mode = last_extra_data.get("enslaved_hvac_mode")
+            self._scheduler_previous_state = last_extra_data.get("scheduler_previous_state")
         await super().async_added_to_hass()
+
+    #
+    # Append custom state attributes in the entity's state attributes
+    #
+
+    @final
+    @property
+    def state_attributes(self) -> dict[str, Any]:
+        """Return the optional state attributes."""
+        log.debug("Compute state attributes")
+        data = super().state_attributes
+        data.update(
+            {
+                "enslaved_mode": self.enslaved_mode,
+                "enslaved_target_temp": self.enslaved_target_temp,
+                "enslaved_hvac_mode": self.enslaved_hvac_mode,
+                "in_scheduler_mode": self.in_scheduler_mode,
+                "scheduler_previous_target_temp": (
+                    self._scheduler_previous_state["temperature"]
+                    if self._scheduler_previous_state
+                    else None
+                ),
+                "scheduler_previous_hvac_mode": (
+                    self._scheduler_previous_state["hvac_mode"]
+                    if self._scheduler_previous_state
+                    else None
+                ),
+            }
+        )
+        return data
+
+    #
+    # Implement methods to control the enslaved mode
+    #
+    # Note: these methods are callable througt custom integration services registered in
+    # async_setup_platform() and described in services.yaml file.
+    #
 
     @property
     def enslaved_mode(self):
         """Return current enslaved mode."""
         return self._enslaved_mode
+
+    def assert_not_in_enslaved_off_mode(self):
+        """
+        Verify the thermostat is not in enslaved force OFF mode. Raise a ServiceValidationError
+        exception otherwise.
+        """
+        if self.enslaved_mode == EnslavedMode.OFF:
+            raise ServiceValidationError(
+                "This thermostat is currently in enslaved force OFF mode, can't control it without"
+                " leaving this mode first."
+            )
 
     @property
     def enslaved_target_temp(self):
@@ -259,34 +338,25 @@ class EnslavedThermostat(GenericThermostat):
         """Return current enslaved HVAC mode."""
         return self._enslaved_hvac_mode if self._enslaved_hvac_mode else self.hvac_mode
 
-    @final
-    @property
-    def state_attributes(self) -> dict[str, Any]:
-        """Return the optional state attributes."""
-        data = super().state_attributes
-        data.update(
-            {
-                "enslaved_mode": self.enslaved_mode,
-                "enslaved_target_temp": self.enslaved_target_temp,
-                "enslaved_hvac_mode": self.enslaved_hvac_mode,
-            }
-        )
-        return data
-
-    async def async_set_enslaved_mode(self, mode, temperature=None, hvac_mode=None):
+    async def async_set_enslaved_mode(self, mode=None, temperature=None, hvac_mode=None):
         """Set current enslaved mode."""
         log.debug("async_set_enslaved_mode(%s, %s, %s)", mode, temperature, hvac_mode)
-        if mode not in ENSLAVED_MODES:
-            raise ValueError(
-                f"Got unsupported enslaved_mode {mode}. Must be one of" f" {ENSLAVED_MODES}"
-            )
-        self._enslaved_mode = mode
+        if mode is not None:
+            if mode not in ENSLAVED_MODES:
+                raise ValueError(
+                    f"Got unsupported enslaved_mode {mode}. Must be one of" f" {ENSLAVED_MODES}"
+                )
+            self._enslaved_mode = mode
 
         if temperature is not None:
             await self.async_set_enslaved_target_temp(temperature)
 
         if hvac_mode is not None:
             await self.async_set_enslaved_hvac_mode(hvac_mode)
+
+        # Do not apply new state if thermostat is currently in scheduler mode
+        if self.in_scheduler_mode:
+            return
 
         if self.enslaved_mode == EnslavedMode.AUTO:
             await self._async_set_temperature(temperature=self.enslaved_target_temp)
@@ -306,6 +376,11 @@ class EnslavedThermostat(GenericThermostat):
                 f" {self.min_temp} and {self.max_temp}."
             )
         self._enslaved_target_temp = temperature
+
+        # Do not apply new state if thermostat is currently in scheduler mode
+        if self.in_scheduler_mode:
+            return
+
         if self.enslaved_mode == EnslavedMode.AUTO:
             await self._async_set_temperature(temperature=temperature)
         # Ensure to update state after changing the enslaved target temperature
@@ -319,13 +394,112 @@ class EnslavedThermostat(GenericThermostat):
                 f"Got unsupported enslaved_hvac_mode {mode}. Must be one of {self.hvac_modes}."
             )
         self._enslaved_hvac_mode = mode
+
+        # Do not apply new state if thermostat is currently in scheduler mode
+        if self.in_scheduler_mode:
+            return
+
         if self.enslaved_mode == EnslavedMode.AUTO:
             await self._async_set_hvac_mode(mode)
         # Ensure to update state after changing the enslaved HVAC mode
         self.async_write_ha_state()
 
+    #
+    # Implement methods to control the scheduler mode
+    #
+    # Note: these methods are callable througt custom integration services registered in
+    # async_setup_platform() and described in services.yaml file.
+    #
+
+    @property
+    def in_scheduler_mode(self):
+        """Return True if thermostat is currently in scheduler mode, False otherwise."""
+        return bool(self._scheduler_previous_state)
+
+    def assert_not_in_scheduler_mode(self):
+        """
+        Verify the thermostat is not in scheduler mode. Raise a ServiceValidationError exception
+        otherwise.
+        """
+        if self.in_scheduler_mode:
+            raise ServiceValidationError(
+                "This thermostat is currently in scheduler mode, can't control it without leaving"
+                " this mode first."
+            )
+
+    async def async_start_scheduler_mode(self, temperature, hvac_mode=None):
+        """
+        Start scheduler mode: apply specified heating parameters and store current state in
+        self._scheduler_previous_state.
+        """
+        log.debug("async_start_scheduler_mode(%s, %s)", temperature, hvac_mode)
+        current_state = {
+            "temperature": self._target_temp,
+            "hvac_mode": self.hvac_mode,
+        }
+        try:
+            await self._async_set_temperature(temperature=temperature)
+            await self._async_set_hvac_mode(hvac_mode if hvac_mode is not None else HVACMode.HEAT)
+        except ValueError:
+            log.warning(
+                "Fail to start scheduler mode with provided parameters, restore previous state"
+            )
+            await self._async_set_temperature(temperature=current_state["temperature"])
+            await self._async_set_hvac_mode(current_state["hvac_mode"])
+            raise
+
+        if not self._scheduler_previous_state:
+            self._scheduler_previous_state = current_state
+
+        # Apply enslaved mode state if it changed during thermostat was in scheduler mode
+        await self.async_set_enslaved_mode()
+
+        # Ensure to update state after changing the enslaved mode
+        self.async_write_ha_state()
+
+    async def async_stop_scheduler_mode(self):
+        """
+        Start scheduler mode: restore previous state from self._scheduler_previous_state and clean
+        it to leave scheduler mode.
+        """
+        log.debug("async_stop_scheduler_mode()")
+        if not self._scheduler_previous_state:
+            raise ServiceValidationError("This thermostat is not currently in scheduler mode.")
+        current_state = {
+            "temperature": self._target_temp,
+            "hvac_mode": self.hvac_mode,
+        }
+        try:
+            await self._async_set_temperature(
+                temperature=self._scheduler_previous_state["temperature"]
+            )
+            await self._async_set_hvac_mode(self._scheduler_previous_state["hvac_mode"])
+        except ValueError:
+            log.warning(
+                "Fail to restore the state before the scheduler was stated, restore previous state"
+            )
+            await self._async_set_temperature(temperature=current_state["temperature"])
+            await self._async_set_hvac_mode(current_state["hvac_mode"])
+            raise
+
+        # Clean previous state to leave scheduler mode
+        self._scheduler_previous_state = None
+
+        # Ensure to update state after changing the enslaved mode
+        self.async_write_ha_state()
+
+    #
+    # Override GenericThermostat methods to set HVAC mode and target temperature to manage the
+    # current scheduler and enslaved mode in case on manual action on the thermostat:
+    # - forbidden change in scheduler mode or in force OFF enslaved mode
+    # - switch in manual enslaved mode otherwise
+    # Note: Keep access to original methods by adding private methods.
+    #
+
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode."""
+        self.assert_not_in_scheduler_mode()
+        self.assert_not_in_enslaved_off_mode()
         log.debug("Set HVAC mode to %s and enslaved mode to manual", hvac_mode)
         await self._async_set_hvac_mode(hvac_mode)
         await self.async_set_enslaved_mode(EnslavedMode.MANUAL)
@@ -336,6 +510,8 @@ class EnslavedThermostat(GenericThermostat):
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set temperature method"""
+        self.assert_not_in_scheduler_mode()
+        self.assert_not_in_enslaved_off_mode()
         log.debug("Set temperature to %s and enslaved mode to manual", kwargs.get(ATTR_TEMPERATURE))
         await self._async_set_temperature(**kwargs)
         await self.async_set_enslaved_mode(EnslavedMode.MANUAL)

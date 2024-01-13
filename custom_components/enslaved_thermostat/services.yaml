@@ -71,3 +71,37 @@ set_enslaved_hvac_mode:
             - "fan_only"
             - "heat_cool"
             - "heat"
+
+start_scheduler_mode:
+  target:
+    entity:
+      domain: climate
+  fields:
+    temperature:
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 250
+          step: 0.1
+          mode: box
+    hvac_mode:
+      required: false
+      example: "heat"
+      default: "heat"
+      selector:
+        select:
+          translation_key: hvac_mode
+          options:
+            - "off"
+            - "auto"
+            - "cool"
+            - "dry"
+            - "fan_only"
+            - "heat_cool"
+            - "heat"
+
+stop_scheduler_mode:
+  target:
+    entity:
+      domain: climate
