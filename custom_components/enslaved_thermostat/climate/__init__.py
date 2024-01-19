@@ -35,6 +35,7 @@ from ..const import (
     CONF_INITIAL_MANUAL_HVAC_MODE,
     CONF_INITIAL_MANUAL_TARGET_TEMP,
     CONF_TYPE,
+    SERVICE_RESTORE_MANUAL_STATE,
     SERVICE_SET_ENSLAVED_HVAC_MODE,
     SERVICE_SET_ENSLAVED_MODE,
     SERVICE_SET_ENSLAVED_TARGET_TEMP,
@@ -179,4 +180,10 @@ async def async_register_services(platform) -> None:
             vol.Optional("hvac_mode"): vol.Coerce(HVACMode),
         },
         "async_set_manual_state",
+    )
+
+    platform.async_register_entity_service(
+        SERVICE_RESTORE_MANUAL_STATE,
+        {},
+        "async_restore_manual_state",
     )

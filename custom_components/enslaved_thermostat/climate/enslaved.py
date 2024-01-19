@@ -163,7 +163,15 @@ class EnslavedThermostat(EnslavedGenericThermostat):
                 raise ValueError(
                     f"Got unsupported enslaved_mode {mode}. Must be one of" f" {ENSLAVED_MODES}"
                 )
-            self._enslaved_mode = mode
+            if self._enslaved_mode != mode:
+                # Save manual state if we leave the manual mode
+                if self._enslaved_mode == EnslavedMode.MANUAL:
+                    self.manual_target_temp = self.target_temperature
+                    self.manual_hvac_mode = self.hvac_mode
+                self._enslaved_mode = mode
+                # Restore the manual
+                if mode == EnslavedMode.MANUAL:
+                    await self.async_restore_manual_state()
 
         if temperature is not None:
             await self.async_set_enslaved_target_temp(temperature)
@@ -336,3 +344,35 @@ class EnslavedThermostat(EnslavedGenericThermostat):
     async def _async_set_temperature(self, **kwargs: Any) -> None:
         """Original GenericThermostat set temperature method"""
         await super().async_set_temperature(**kwargs)
+
+    #
+    # Override restore_manual_state() method to respect the scheduler mode and switch to enslaved
+    # manual mode if not already set.
+    #
+
+    async def async_restore_manual_state(self):
+        """
+        Restore manual state if we are not in scheduler mode.
+        Note: set enslaved mode to manual if not set.
+        """
+        self.assert_not_in_scheduler_mode()
+        log.debug("async_restore_manual_state()")
+        if self.enslaved_mode != EnslavedMode.MANUAL:
+            self.set_enslaved_mode(EnslavedMode.MANUAL)
+        # If we are in scheduler mode, do not restore manual state, but overide state to retore when
+        # we will leave the scheduler mode
+        if self.in_scheduler_mode:
+            self._scheduler_previous_state = {
+                "temperature": (
+                    self.manual_target_temp
+                    if self.manual_target_temp
+                    else self._scheduler_previous_state["temperature"]
+                ),
+                "hvac_mode": (
+                    self.manual_hvac_mode
+                    if self.manual_hvac_mode
+                    else self._scheduler_previous_state["hvac_mode"]
+                ),
+            }
+        else:
+            super().restore_manual_state()

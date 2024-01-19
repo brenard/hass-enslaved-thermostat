@@ -132,6 +132,15 @@ class EnslavedGenericThermostat(GenericThermostat):
         # Ensure to update state after changing the enslaved mode
         self.async_write_ha_state()
 
+    async def async_restore_manual_state(self):
+        """Restore manual state."""
+        log.debug("async_restore_manual_state()")
+        if self.manual_target_temp is not None:
+            await self.async_set_temperature(temperature=self.manual_target_temp)
+
+        if self.manual_hvac_mode is not None:
+            await self.async_set_hvac_mode(self.manual_hvac_mode)
+
 
 class FakeEnslavedGenericThermostat(EnslavedGenericThermostat):
     """

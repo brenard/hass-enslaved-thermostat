@@ -133,3 +133,8 @@ set_manual_state:
             - "fan_only"
             - "heat_cool"
             - "heat"
+
+restore_manual_state:
+  target:
+    entity:
+      domain: climate
