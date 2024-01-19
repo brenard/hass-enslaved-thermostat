@@ -16,13 +16,24 @@ script: !include scripts.yaml
 scene: !include scenes.yaml
 
 input_boolean:
-  virtual_heater:
-    name: Virtual Heater
+  virtual_heater1:
+    name: Virtual Heater 1
+    icon: mdi:radiator
+  virtual_heater2:
+    name: Virtual Heater 2
     icon: mdi:radiator
 
 input_number:
-  virtual_temp_sensor:
-    name: Virtual temperature sensor
+  virtual_temp_sensor1:
+    name: Virtual temperature sensor 1
+    icon: mdi:thermometer
+    min: -20
+    max: 40
+    step: 0.1
+    mode: box
+    unit_of_measurement: °C
+  virtual_temp_sensor2:
+    name: Virtual temperature sensor 2
     icon: mdi:thermometer
     min: -20
     max: 40
@@ -32,6 +43,18 @@ input_number:
 
 climate:
   - platform: enslaved_thermostat
-    name: Virtual thermostat
-    heater: input_boolean.virtual_heater
-    target_sensor: input_number.virtual_temp_sensor
+    name: Virtual thermostat 1
+    heater: input_boolean.virtual_heater1
+    target_sensor: input_number.virtual_temp_sensor1
+    unique_id: virtual_thermostat1
+  - platform: enslaved_thermostat
+    name: Virtual thermostat 2
+    heater: input_boolean.virtual_heater2
+    target_sensor: input_number.virtual_temp_sensor2
+    unique_id: virtual_thermostat2
+  - platform: enslaved_thermostat
+    name: Master thermostat
+    type: master
+    enslaved_thermostats:
+        - climate.virtual_thermostat1
+        - climate.virtual_thermostat2

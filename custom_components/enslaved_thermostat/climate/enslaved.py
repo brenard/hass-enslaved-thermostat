@@ -1,182 +1,37 @@
 """Adds support for enslaved thermostat."""
 import logging
-from dataclasses import asdict, dataclass
-from enum import StrEnum
+from dataclasses import dataclass
 from typing import Any, final
 
-import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
 from homeassistant.components.climate.const import HVACMode
-from homeassistant.components.generic_thermostat.climate import (
-    CONF_AC_MODE,
-    CONF_COLD_TOLERANCE,
-    CONF_HEATER,
-    CONF_HOT_TOLERANCE,
-    CONF_INITIAL_HVAC_MODE,
-    CONF_KEEP_ALIVE,
-    CONF_MAX_TEMP,
-    CONF_MIN_DUR,
-    CONF_MIN_TEMP,
-    CONF_PRECISION,
-    CONF_PRESETS,
-    CONF_SENSOR,
-    CONF_TARGET_TEMP,
-    CONF_TEMP_STEP,
-    PLATFORM_SCHEMA,
-    GenericThermostat,
-)
-from homeassistant.const import ATTR_TEMPERATURE, CONF_NAME, CONF_UNIQUE_ID
-from homeassistant.core import HomeAssistant
+from homeassistant.const import ATTR_TEMPERATURE
+from homeassistant.helpers.restore_state import ExtraStoredData
 
 try:
     from homeassistant.exceptions import ServiceValidationError
 except ImportError:
     from homeassistant.exceptions import HomeAssistantError as ServiceValidationError
-from homeassistant.helpers.entity_platform import AddEntitiesCallback, async_get_current_platform
-from homeassistant.helpers.reload import async_setup_reload_service
-from homeassistant.helpers.restore_state import ExtraStoredData
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from . import DOMAIN, PLATFORMS
+from ..const import (
+    ATTR_ENSLAVED_HVAC_MODE,
+    ATTR_ENSLAVED_IN_SCHEDULER_MODE,
+    ATTR_ENSLAVED_MODE,
+    ATTR_ENSLAVED_SCHEDULER_PREV_HVAC_MODE,
+    ATTR_ENSLAVED_SCHEDULER_PREV_TARGET_TEMP,
+    ATTR_ENSLAVED_TARGET_TEMP,
+    ATTR_SCHEDULER_PREV_STATE,
+    DEFAULT_ENSLAVED_MODE,
+    DEFAULT_ENSLAVED_THERMOSTAT_NAME,
+    ENSLAVED_MODES,
+    EnslavedMode,
+)
+from .common import EnslavedGenericThermostat, EnslavedGenericThermostatExtraStoredData
 
 log = logging.getLogger(__name__)
 
-DEFAULT_NAME = "Enslaved Thermostat"
-
-CONF_INITIAL_ENSLAVED_MODE = "initial_enslaved_mode"
-
-
-class EnslavedMode(StrEnum):
-    """Enslaved mode for enslaved thermostat devices."""
-
-    # Auto: used enslaved target temperature and HVAC mode
-    AUTO = "auto"
-
-    # Manual: let user used this thermostat as a regular climate device
-    MANUAL = "manual"
-
-    # Off: force thermostat to OFF
-    OFF = "off"
-
-
-ENSLAVED_MODES = [cls.value for cls in EnslavedMode]
-DEFAULT_ENSLAVED_MODE = EnslavedMode.MANUAL
-
-SERVICE_SET_ENSLAVED_MODE = "set_enslaved_mode"
-SERVICE_SET_ENSLAVED_TARGET_TEMP = "set_enslaved_target_temperature"
-SERVICE_SET_ENSLAVED_HVAC_MODE = "set_enslaved_hvac_mode"
-SERVICE_START_SCHEDULER_MODE = "start_scheduler_mode"
-SERVICE_STOP_SCHEDULER_MODE = "stop_scheduler_mode"
-
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Optional(CONF_NAME, default=DEFAULT_NAME): cv.string,
-        vol.Optional(CONF_INITIAL_ENSLAVED_MODE): vol.Coerce(EnslavedMode),
-    }
-)
-
-
-async def async_setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    async_add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
-) -> None:
-    """Set up the generic thermostat platform."""
-
-    await async_setup_reload_service(hass, DOMAIN, PLATFORMS)
-
-    name = config.get(CONF_NAME)
-    heater_entity_id = config.get(CONF_HEATER)
-    sensor_entity_id = config.get(CONF_SENSOR)
-    min_temp = config.get(CONF_MIN_TEMP)
-    max_temp = config.get(CONF_MAX_TEMP)
-    target_temp = config.get(CONF_TARGET_TEMP)
-    ac_mode = config.get(CONF_AC_MODE)
-    min_cycle_duration = config.get(CONF_MIN_DUR)
-    cold_tolerance = config.get(CONF_COLD_TOLERANCE)
-    hot_tolerance = config.get(CONF_HOT_TOLERANCE)
-    keep_alive = config.get(CONF_KEEP_ALIVE)
-    initial_hvac_mode = config.get(CONF_INITIAL_HVAC_MODE)
-    initial_enslaved_mode = config.get(CONF_INITIAL_ENSLAVED_MODE)
-    presets = {key: config[value] for key, value in CONF_PRESETS.items() if value in config}
-    precision = config.get(CONF_PRECISION)
-    target_temperature_step = config.get(CONF_TEMP_STEP)
-    unit = hass.config.units.temperature_unit
-    unique_id = config.get(CONF_UNIQUE_ID)
-
-    async_add_entities(
-        [
-            EnslavedThermostat(
-                name,
-                heater_entity_id,
-                sensor_entity_id,
-                min_temp,
-                max_temp,
-                target_temp,
-                ac_mode,
-                min_cycle_duration,
-                cold_tolerance,
-                hot_tolerance,
-                keep_alive,
-                initial_hvac_mode,
-                presets,
-                precision,
-                target_temperature_step,
-                unit,
-                unique_id,
-                initial_enslaved_mode,
-            )
-        ]
-    )
-
-    log.debug("Register enslaved thermostats services")
-    platform = async_get_current_platform()
-
-    platform.async_register_entity_service(
-        SERVICE_SET_ENSLAVED_MODE,
-        {
-            vol.Required("mode"): vol.Coerce(EnslavedMode),
-            vol.Optional("temperature"): vol.Coerce(float),
-            vol.Optional("hvac_mode"): vol.Coerce(HVACMode),
-        },
-        "async_set_enslaved_mode",
-    )
-
-    platform.async_register_entity_service(
-        SERVICE_SET_ENSLAVED_TARGET_TEMP,
-        {
-            vol.Required("temperature"): vol.Coerce(float),
-        },
-        "async_set_enslaved_target_temp",
-    )
-
-    platform.async_register_entity_service(
-        SERVICE_SET_ENSLAVED_HVAC_MODE,
-        {
-            vol.Required("mode"): vol.Coerce(HVACMode),
-        },
-        "async_set_enslaved_hvac_mode",
-    )
-
-    platform.async_register_entity_service(
-        SERVICE_START_SCHEDULER_MODE,
-        {
-            vol.Required("temperature"): vol.Coerce(float),
-            vol.Optional("hvac_mode"): vol.Coerce(HVACMode),
-        },
-        "async_start_scheduler_mode",
-    )
-
-    platform.async_register_entity_service(
-        SERVICE_STOP_SCHEDULER_MODE,
-        {},
-        "async_stop_scheduler_mode",
-    )
-
 
 @dataclass
-class EnslavedThermostatExtraStoredData(ExtraStoredData):
+class EnslavedThermostatExtraStoredData(EnslavedGenericThermostatExtraStoredData):
     """Object to hold enslaved thermostat extra stored data."""
 
     enslaved_mode: str | None = None
@@ -184,60 +39,27 @@ class EnslavedThermostatExtraStoredData(ExtraStoredData):
     enslaved_hvac_mode: HVACMode | None = None
     scheduler_previous_state: dict | None = None
 
-    def as_dict(self) -> dict[str, Any]:
-        """Return a dict representation of the text data."""
-        return asdict(self)
 
-
-class EnslavedThermostat(GenericThermostat):
+class EnslavedThermostat(EnslavedGenericThermostat):
     """Representation of an Enslaved Thermostat device"""
+
+    _default_name = DEFAULT_ENSLAVED_THERMOSTAT_NAME
 
     _enslaved_target_temp = None
     _enslaved_hvac_mode = None
     _scheduler_previous_state = None
 
-    def __init__(
-        self,
-        name,
-        heater_entity_id,
-        sensor_entity_id,
-        min_temp,
-        max_temp,
-        target_temp,
-        ac_mode,
-        min_cycle_duration,
-        cold_tolerance,
-        hot_tolerance,
-        keep_alive,
-        initial_hvac_mode,
-        presets,
-        precision,
-        target_temperature_step,
-        unit,
-        unique_id,
-        initial_enslaved_mode,
-    ):
+    def __init__(self, **kwargs):
         """Initialize the thermostat."""
-        log.debug("Initialize enslaved thermostat %s", name)
-        super().__init__(
-            name,
-            heater_entity_id,
-            sensor_entity_id,
-            min_temp,
-            max_temp,
-            target_temp,
-            ac_mode,
-            min_cycle_duration,
-            cold_tolerance,
-            hot_tolerance,
-            keep_alive,
-            initial_hvac_mode,
-            presets,
-            precision,
-            target_temperature_step,
-            unit,
-            unique_id,
-        )
+        super().__init__(**kwargs)
+        assert kwargs[
+            "heater_entity_id"
+        ], f"No heater configured for enslaved thermostat {kwargs['name']}"
+        assert kwargs[
+            "sensor_entity_id"
+        ], f"No sensor configured for enslaved thermostat {kwargs['name']}"
+
+        initial_enslaved_mode = kwargs.get("initial_enslaved_mode")
         if initial_enslaved_mode and initial_enslaved_mode not in ENSLAVED_MODES:
             raise ValueError(
                 f"Got unsupported initial_enslaved_mode {initial_enslaved_mode}. Must be one of"
@@ -259,21 +81,16 @@ class EnslavedThermostat(GenericThermostat):
             enslaved_target_temp=self.enslaved_target_temp,
             enslaved_hvac_mode=self.enslaved_hvac_mode,
             scheduler_previous_state=self._scheduler_previous_state,
+            **super().extra_restore_state_data.as_dict(),
         )
 
-    async def async_added_to_hass(self) -> None:
-        """Run when entity about to be added."""
-        # Retrieve and restore enslaved mode info from last known state
-        log.debug("Compute state attributes")
-        last_extra_data = await self.async_get_last_extra_data()
-        if last_extra_data is not None:
-            last_extra_data = last_extra_data.as_dict()
-            log.debug("Last extra data: %s", last_extra_data)
-            self._enslaved_mode = last_extra_data.get("enslaved_mode")
-            self._enslaved_target_temp = last_extra_data.get("enslaved_target_temp")
-            self._enslaved_hvac_mode = last_extra_data.get("enslaved_hvac_mode")
-            self._scheduler_previous_state = last_extra_data.get("scheduler_previous_state")
-        await super().async_added_to_hass()
+    def _restore_last_extra_data(self, last_extra_data):
+        """Restore last extra data"""
+        super()._restore_last_extra_data(last_extra_data)
+        self._enslaved_mode = last_extra_data.get(ATTR_ENSLAVED_MODE)
+        self._enslaved_target_temp = last_extra_data.get(ATTR_ENSLAVED_TARGET_TEMP)
+        self._enslaved_hvac_mode = last_extra_data.get(ATTR_ENSLAVED_HVAC_MODE)
+        self._scheduler_previous_state = last_extra_data.get(ATTR_SCHEDULER_PREV_STATE)
 
     #
     # Append custom state attributes in the entity's state attributes
@@ -287,16 +104,16 @@ class EnslavedThermostat(GenericThermostat):
         data = super().state_attributes
         data.update(
             {
-                "enslaved_mode": self.enslaved_mode,
-                "enslaved_target_temp": self.enslaved_target_temp,
-                "enslaved_hvac_mode": self.enslaved_hvac_mode,
-                "in_scheduler_mode": self.in_scheduler_mode,
-                "scheduler_previous_target_temp": (
+                ATTR_ENSLAVED_MODE: self.enslaved_mode,
+                ATTR_ENSLAVED_TARGET_TEMP: self.enslaved_target_temp,
+                ATTR_ENSLAVED_HVAC_MODE: self.enslaved_hvac_mode,
+                ATTR_ENSLAVED_IN_SCHEDULER_MODE: self.in_scheduler_mode,
+                ATTR_ENSLAVED_SCHEDULER_PREV_TARGET_TEMP: (
                     self._scheduler_previous_state["temperature"]
                     if self._scheduler_previous_state
                     else None
                 ),
-                "scheduler_previous_hvac_mode": (
+                ATTR_ENSLAVED_SCHEDULER_PREV_HVAC_MODE: (
                     self._scheduler_previous_state["hvac_mode"]
                     if self._scheduler_previous_state
                     else None
