@@ -116,7 +116,7 @@ class EnslavedGenericThermostat(GenericThermostat):
     #
     # Implement method to control the manual state
     #
-    # Note: this method is callable througt custom integration services registered in
+    # Note: this method is callable through custom integration services registered in
     # async_setup_platform() and described in services.yaml file.
     #
 

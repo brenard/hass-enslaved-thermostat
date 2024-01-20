@@ -125,7 +125,7 @@ class EnslavedThermostat(EnslavedGenericThermostat):
     #
     # Implement methods to control the enslaved mode
     #
-    # Note: these methods are callable througt custom integration services registered in
+    # Note: these methods are callable through custom integration services registered in
     # async_setup_platform() and described in services.yaml file.
     #
 
@@ -232,7 +232,7 @@ class EnslavedThermostat(EnslavedGenericThermostat):
     #
     # Implement methods to control the scheduler mode
     #
-    # Note: these methods are callable througt custom integration services registered in
+    # Note: these methods are callable through custom integration services registered in
     # async_setup_platform() and described in services.yaml file.
     #
 
@@ -359,8 +359,8 @@ class EnslavedThermostat(EnslavedGenericThermostat):
         log.debug("async_restore_manual_state()")
         if self.enslaved_mode != EnslavedMode.MANUAL:
             self.set_enslaved_mode(EnslavedMode.MANUAL)
-        # If we are in scheduler mode, do not restore manual state, but overide state to retore when
-        # we will leave the scheduler mode
+        # If we are in scheduler mode, do not restore manual state, but override state to restore
+        # when we will leave the scheduler mode
         if self.in_scheduler_mode:
             self._scheduler_previous_state = {
                 "temperature": (
