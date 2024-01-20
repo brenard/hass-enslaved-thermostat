@@ -1,4 +1,4 @@
-
+---
 # Loads default set of integrations. Do not remove.
 default_config:
 
@@ -56,5 +56,5 @@ climate:
     name: Master thermostat
     type: master
     enslaved_thermostats:
-        - climate.virtual_thermostat1
-        - climate.virtual_thermostat2
+      - climate.virtual_thermostat1
+      - climate.virtual_thermostat2
