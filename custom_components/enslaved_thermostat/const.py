@@ -4,6 +4,7 @@ from enum import StrEnum
 
 DEFAULT_ENSLAVED_THERMOSTAT_NAME = "Enslaved Thermostat"
 DEFAULT_MASTER_THERMOSTAT_NAME = "Master Thermostat"
+DEFAULT_SCHEDULABLE_THERMOSTAT_NAME = "Schedulable Thermostat"
 
 CONF_INITIAL_ENSLAVED_MODE = "initial_enslaved_mode"
 CONF_TYPE = "type"
@@ -20,6 +21,14 @@ ATTR_ENSLAVED_SCHEDULER_PREV_HVAC_MODE = "scheduler_previous_hvac_mode"
 ATTR_MANUAL_TARGET_TEMP = "manual_target_temp"
 ATTR_MANUAL_HAVC_MODE = "manual_hvac_mode"
 ATTR_SCHEDULER_PREV_STATE = "scheduler_previous_state"
+
+
+class EnslavedType(StrEnum):
+    """Types of enslaved thermostat devices."""
+
+    ENSLAVED = "enslaved"
+    MASTER = "master"
+    SCHEDULABLE = "schedulable"
 
 
 class EnslavedMode(StrEnum):

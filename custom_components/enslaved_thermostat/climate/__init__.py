@@ -1,6 +1,5 @@
 """Adds support for enslaved thermostat."""
 import logging
-from enum import StrEnum
 
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
@@ -42,18 +41,13 @@ from ..const import (
     SERVICE_SET_MANUAL_STATE,
     SERVICE_START_SCHEDULER_MODE,
     SERVICE_STOP_SCHEDULER_MODE,
+    EnslavedType,
 )
 from .enslaved import EnslavedMode, EnslavedThermostat
 from .master import MasterThermostat
+from .schedulable import SchedulableThermostat
 
 log = logging.getLogger(__name__)
-
-
-class EnslavedType(StrEnum):
-    """Types of enslaved thermostat devices."""
-
-    ENSLAVED = "enslaved"
-    MASTER = "master"
 
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -121,6 +115,13 @@ async def async_setup_platform(
             }
         )
         async_add_entities([MasterThermostat(**kwargs)])
+    elif dev_type == EnslavedType.SCHEDULABLE:
+        kwargs.update(
+            {
+                "enslaved_thermostats": config.get(CONF_ENSLAVED_THERMOSTATS),
+            }
+        )
+        async_add_entities([SchedulableThermostat(**kwargs)])
 
     log.debug("Register enslaved thermostats services")
     platform = async_get_current_platform()

@@ -58,3 +58,9 @@ climate:
     enslaved_thermostats:
       - climate.virtual_thermostat1
       - climate.virtual_thermostat2
+  - platform: enslaved_thermostat
+    name: Schedulable thermostat
+    type: schedulable
+    enslaved_thermostats:
+      - climate.virtual_thermostat1
+      - climate.virtual_thermostat2
