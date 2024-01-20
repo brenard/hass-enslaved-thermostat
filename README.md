@@ -5,6 +5,7 @@ thermostat. An enslaved thermostat is a generic thermostat with some additional 
 and services.
 
 Three enslaved modes are supported:
+
 - `auto`: the target temperature and the HVAC mode of the thermostat are set regarding current
   enslaved parameters. Any manual changes on the climate entity will put the thermostat in `manual`
   enslaved mode.
@@ -58,19 +59,19 @@ state attributes:
 - `scheduler_previous_hvac_mode`: the HVAC mode of the thermostat before it entered in scheduler
   mode (`null` if not currently in scheduler mode)
 
-__Example of exposed state attributes:__
+**Example of exposed state attributes:**
 
 ```yaml
 hvac_modes:
   - heat
-  - 'off'
+  - "off"
 min_temp: 7
 max_temp: 35
 target_temp_step: 0.1
 current_temperature: 15
 temperature: 22.5
-hvac_action: 'off'
-enslaved_mode: 'off'
+hvac_action: "off"
+enslaved_mode: "off"
 enslaved_target_temp: 18
 enslaved_hvac_mode: heat
 in_scheduler_mode: false
@@ -97,7 +98,7 @@ Put the `custom_components/enslaved_thermostat` directory in your Home Assistant
 directory and restart Home Assistant. You can now add this integration (look for _"CCEI Tild"_) and provide the
 IP address (or hostname) of your Tild box.
 
-__Note:__ The `custom_components` directory is located in the same directory of the
+**Note:** The `custom_components` directory is located in the same directory of the
 `configuration.yaml`. If it doesn't exists, create it.
 
 ## Configuration
@@ -107,7 +108,7 @@ an enslaved thermostat is configured by adding some stuff in your `configuration
 supported parameters of a generic thermostat are supported and the `initial_enslaved_mode` parameter
 was had to control the initial enslaved mode (only used if no previous state is known).
 
-__Basic configuration:__
+**Basic configuration:**
 
 ```yaml
 climate:
@@ -133,7 +134,7 @@ a virtual heater (in fact, an `input_boolean` entry) and follow if virtual senso
 fact an `input_number` entry). This virtual thermostat is useful to test your changes and new
 features.
 
-__Details about the manage script usage:__
+**Details about the manage script usage:**
 
 ```
 Usage: ./manage [command]
@@ -163,9 +164,9 @@ logger:
     custom_components.enslaved_thermostat: debug
 ```
 
-__Note:__
+**Note:**
 
 - debug logging is defaultly set to debug in the provided `configuration.yaml` file of the
-development environment.
+  development environment.
 - In development environment and you will be able to follow docker container logs by running
-the `./manage logs` command.
+  the `./manage logs` command.

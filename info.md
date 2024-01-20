@@ -8,6 +8,7 @@
 The component provide a Home Assistant integration that could be used to implement an enslaved thermostat. An enslaved thermostat is a generic thermostat with some additional properties, features and services.
 
 Three enslaved modes are supported:
+
 - `auto`: the target temperature and the HVAC mode of the thermostat are set regarding current enslaved parameters. Any manual changes on the climate entity will put the thermostat in `manual` enslaved mode.
 - `manual`: the thermostat works as a regular generic thermostat
 - `off`: the thermostat is forced to OFF. No manual change on the climate entity is allowed (and triggered an error).
@@ -43,19 +44,19 @@ Finally, all custom parameters added to implement enslaved thermostat are expose
 - `scheduler_previous_target_temp`: the target temperature of the thermostat before it entered in scheduler mode (`null` if not currently in scheduler mode)
 - `scheduler_previous_hvac_mode`: the HVAC mode of the thermostat before it entered in scheduler mode (`null` if not currently in scheduler mode)
 
-__Example of exposed state attributes:__
+**Example of exposed state attributes:**
 
 ```yaml
 hvac_modes:
   - heat
-  - 'off'
+  - "off"
 min_temp: 7
 max_temp: 35
 target_temp_step: 0.1
 current_temperature: 15
 temperature: 22.5
-hvac_action: 'off'
-enslaved_mode: 'off'
+hvac_action: "off"
+enslaved_mode: "off"
 enslaved_target_temp: 18
 enslaved_hvac_mode: heat
 in_scheduler_mode: false
@@ -73,7 +74,7 @@ supported_features: 1
 
 As a regular [generic thermostat](https://www.home-assistant.io/integrations/generic_thermostat/), an enslaved thermostat is configured by adding some stuff in your `configuration.yaml` file. All supported parameters of a generic thermostat are supported and the `initial_enslaved_mode` parameter was had to control the initial enslaved mode (only used if no previous state is known).
 
-__Basic configuration:__
+**Basic configuration:**
 
 ```yaml
 climate:
